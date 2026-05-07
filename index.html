@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Classroom Spotlight Challenge</title>
+  <style>
+    :root {
+      --bg0: #060b14;
+      --bg1: #0f1d33;
+      --bg2: #102a1f;
+      --glass: rgba(10, 21, 37, 0.72);
+      --line: rgba(122, 200, 255, 0.35);
+      --text: #e9f4ff;
+      --muted: #9cb4ce;
+      --gold: #ffd166;
+      --mint: #3ddc97;
+      --danger: #ff6b6b;
+      --blue: #7cc9ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 12% 20%, rgba(255, 209, 102, 0.16), transparent 30%),
+        radial-gradient(circle at 85% 10%, rgba(61, 220, 151, 0.12), transparent 32%),
+        linear-gradient(130deg, var(--bg0), var(--bg1), var(--bg2));
+    }
+
+    .scanlines, .spotlight, .dust {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .scanlines {
+      background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.02), rgba(255,255,255,0.02) 1px, transparent 1px, transparent 4px);
+      opacity: .18;
+    }
+    .spotlight {
+      background: radial-gradient(circle at 50% -15%, rgba(255, 209, 102, 0.35), transparent 50%);
+      animation: sweep 8s ease-in-out infinite alternate;
+    }
+    .dust {
+      background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+      background-size: 3px 3px;
+      opacity: .08;
+    }
+
+    .screen { display: none; min-height: 100vh; position: relative; z-index: 1; }
+    .screen.show { display: flex; }
+
+    .start, .end { align-items: center; justify-content: center; padding: 24px; text-align: center; }
+    .start .hero {
+      position: relative;
+      overflow: hidden;
+    }
+    .start .hero::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: 24px;
+      background: conic-gradient(from 170deg, rgba(255,209,102,.25), rgba(124,201,255,.18), rgba(61,220,151,.2), rgba(255,209,102,.25));
+      filter: blur(18px);
+      opacity: .55;
+      z-index: -1;
+    }
+
+    .hero {
+      width: min(920px, 100%);
+      background: var(--glass);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 44px 28px;
+      box-shadow: 0 28px 70px rgba(0,0,0,.45);
+      backdrop-filter: blur(10px);
+      animation: rise .75s ease;
+    }
+
+    h1 { font-size: clamp(2rem, 5vw, 4rem); letter-spacing: .5px; margin-bottom: 8px; }
+    .tag { color: var(--gold); font-weight: 700; margin: 8px 0 18px; letter-spacing: .6px; }
+    .desc { color: var(--muted); font-size: 1.06rem; line-height: 1.65; }
+
+    .btn {
+      border: 0;
+      border-radius: 12px;
+      cursor: pointer;
+      padding: 13px 18px;
+      font-weight: 800;
+      color: #072031;
+      background: linear-gradient(120deg, #ffd166, #ffe6a8);
+      box-shadow: 0 12px 26px rgba(255, 209, 102, 0.34);
+      transition: transform .2s ease, box-shadow .25s ease;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 16px 30px rgba(255,209,102,.45); }
+    .btn.secondary { background: linear-gradient(120deg, #7cc9ff, #b1e3ff); }
+    .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); box-shadow: none; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn.slim { padding: 9px 12px; font-size: .86rem; font-weight: 700; }
+
+    .quiz { width: 100%; display: grid; grid-template-columns: 320px 1fr; }
+
+    aside {
+      min-height: 100vh;
+      padding: 18px;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(7,19,34,.95), rgba(7,19,34,.6));
+    }
+
+    .card {
+      background: var(--glass);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .label { color: var(--muted); font-size: .83rem; margin-bottom: 6px; letter-spacing: .4px; }
+    .big-name {
+      min-height: 34px;
+      color: var(--gold);
+      font-size: 1.33rem;
+      font-weight: 800;
+      text-shadow: 0 0 14px rgba(255,209,102,.25);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat {
+      border: 1px solid rgba(255,255,255,.09);
+      background: rgba(255,255,255,.03);
+      border-radius: 10px;
+      padding: 8px;
+    }
+    .stat strong { display: block; font-size: 1.1rem; color: var(--blue); }
+
+    .controls { display: grid; gap: 8px; }
+
+    .students {
+      max-height: 45vh;
+      overflow: auto;
+      display: grid;
+      gap: 7px;
+      padding-right: 4px;
+    }
+    .student {
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 10px;
+      padding: 8px;
+      font-size: .9rem;
+      background: rgba(255,255,255,.03);
+    }
+    .student.used { opacity: .45; text-decoration: line-through; }
+    .student.absent { color: #ffbe76; border-color: rgba(255,190,118,.45); }
+
+    main {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+    }
+
+    .stage {
+      width: min(960px, 100%);
+      background: var(--glass);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: 0 22px 60px rgba(0,0,0,.35);
+    }
+    .presenter-overlay {
+      position: fixed;
+      right: 16px;
+      bottom: 14px;
+      z-index: 40;
+      font-size: .78rem;
+      color: #d8e8f7;
+      background: rgba(4,12,22,.6);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 999px;
+      padding: 7px 11px;
+      transition: opacity .35s ease, transform .35s ease;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .progress {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.1);
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .progress > div {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(110deg, var(--mint), var(--blue), var(--gold));
+      transition: width .35s ease;
+    }
+
+    .timer-wrap {
+      margin-bottom: 12px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .timer-head { display: flex; justify-content: space-between; font-size: .92rem; color: var(--muted); margin-bottom: 8px; }
+    .timer-bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+    .timer-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #4be38f, #ffd166); transition: width 1s linear, background .3s ease; }
+
+    .question {
+      font-size: clamp(1.25rem, 2.6vw, 2.05rem);
+      line-height: 1.4;
+      margin: 12px 0 18px;
+      font-weight: 700;
+    }
+    .stage-student {
+      margin: 2px 0 12px;
+      text-align: center;
+      font-weight: 900;
+      font-size: clamp(1.45rem, 3.2vw, 2.35rem);
+      color: var(--gold);
+      letter-spacing: .6px;
+      text-shadow: 0 0 16px rgba(255,209,102,.28);
+      min-height: 46px;
+    }
+
+    .options { display: grid; gap: 11px; }
+    .opt {
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 1rem;
+      color: var(--text);
+      background: rgba(255,255,255,.03);
+      text-align: left;
+      cursor: pointer;
+      transition: transform .2s ease, border-color .25s ease, background .25s ease;
+    }
+    .opt:hover { transform: translateX(6px); border-color: rgba(124,201,255,.65); background: rgba(124,201,255,.12); }
+    .opt:disabled { cursor: not-allowed; opacity: .95; }
+    .opt.correct { border-color: var(--mint); background: rgba(61,220,151,.2); }
+    .opt.wrong { border-color: var(--danger); background: rgba(255,107,107,.2); }
+
+    .announce {
+      margin-top: 14px;
+      min-height: 34px;
+      color: var(--gold);
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+
+    .hotkeys {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: .85rem;
+      border-top: 1px solid rgba(255,255,255,.08);
+      padding-top: 10px;
+    }
+
+    .log {
+      margin-top: 12px;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(255,255,255,.02);
+      max-height: 130px;
+      overflow: auto;
+      font-size: .88rem;
+      color: #c9ddf1;
+    }
+
+    .chip {
+      display: inline-block;
+      margin-left: 8px;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: .8rem;
+      color: var(--muted);
+    }
+
+    .pulse {
+      animation: pulse .7s ease;
+    }
+    .start-bullets {
+      margin-top: 18px;
+      display: grid;
+      gap: 8px;
+      text-align: left;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+      color: #d7e7f8;
+      font-size: .95rem;
+    }
+    .start-bullets div {
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: rgba(255,255,255,.03);
+    }
+    .launch-actions {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    body.hide-ui .quiz {
+      grid-template-columns: 0 1fr;
+    }
+    body.hide-ui aside {
+      width: 0;
+      padding: 0;
+      border-right: 0;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateX(-14px);
+      pointer-events: none;
+    }
+    body.hide-ui .hotkeys,
+    body.hide-ui .log,
+    body.hide-ui .presenter-overlay {
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+    }
+    aside, .hotkeys, .log, .presenter-overlay { transition: opacity .35s ease, transform .35s ease; }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(18px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1);} }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(255,209,102,.5)} 100%{box-shadow:0 0 0 20px rgba(255,209,102,0)} }
+    @keyframes sweep { from{transform:translateX(-6%)} to{transform:translateX(6%)} }
+
+    @media (max-width: 980px) {
+      .quiz { grid-template-columns: 1fr; }
+      aside { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .students { max-height: 24vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="scanlines"></div>
+  <div class="spotlight"></div>
+  <div class="dust"></div>
+
+  <section id="startScreen" class="screen start show">
+    <div class="hero">
+      <h1>Classroom Spotlight Challenge</h1>
+      <div class="tag">Live Randomizer | Pass-on-Wrong | 5 High-Pressure Questions</div>
+      <p class="desc">
+        Presenter mode is on. You pick a random student, ask the question, and if the answer is wrong the same question passes instantly to another random student.
+        Use this like a real stage challenge with timer pressure and clean flow.
+      </p>
+      <div class="start-bullets">
+        <div><b>Live flow:</b> Space to pick student, 1-4 to lock answer, A to mark absent.</div>
+        <div><b>Presenter mode:</b> Full-screen with auto-hide controls for clean audience view.</div>
+        <div><b>Pressure mode:</b> 20-second timer, wrong answer passes immediately.</div>
+      </div>
+      <div class="launch-actions">
+        <button id="startBtn" class="btn">Start Show</button>
+        <button id="startFullscreenBtn" class="btn secondary">Start In Full Screen</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="quizScreen" class="screen">
+    <div class="quiz">
+      <aside>
+        <div class="card">
+          <div class="label">Current Student</div>
+          <div id="currentStudent" class="big-name">Not selected</div>
+          <div class="stats-grid">
+            <div class="stat"><span class="label">Attempts</span><strong id="attempts">0</strong></div>
+            <div class="stat"><span class="label">Passes</span><strong id="passes">0</strong></div>
+            <div class="stat"><span class="label">Correct</span><strong id="correctCount">0</strong></div>
+            <div class="stat"><span class="label">Time Left</span><strong id="timeLeft">20s</strong></div>
+          </div>
+        </div>
+
+        <div class="card controls">
+          <button class="btn secondary" id="pickBtn">Pick Random Student</button>
+          <button class="btn ghost" id="absentBtn">Mark Current Absent</button>
+        </div>
+
+        <div class="card">
+          <div class="label">Student Pool</div>
+          <div id="studentList" class="students"></div>
+        </div>
+      </aside>
+
+      <main>
+        <div class="stage" id="stage">
+          <div class="progress"><div id="progressFill"></div></div>
+
+          <div class="topbar">
+            <span id="qCounter">Question 1 / 5</span>
+            <span id="score">Score: 0</span>
+            <span id="modeTag" class="chip">Waiting for random pick</span>
+            <button id="fullscreenBtn" class="btn slim secondary" type="button">Presenter Full Screen</button>
+          </div>
+
+          <div class="timer-wrap">
+            <div class="timer-head">
+              <span>Answer Timer</span>
+              <span id="timerText">20s</span>
+            </div>
+            <div class="timer-bar"><div id="timerFill" class="timer-fill"></div></div>
+          </div>
+
+          <div id="stageStudentName" class="stage-student">Waiting for student...</div>
+          <div id="questionText" class="question"></div>
+          <div id="options" class="options"></div>
+          <div id="announce" class="announce"></div>
+
+          <div class="log" id="eventLog"></div>
+          <div class="hotkeys">Hotkeys: <b>Space</b> pick student, <b>1-4</b> answer options, <b>A</b> mark absent.</div>
+        </div>
+      </main>
+    </div>
+  </section>
+  <div class="presenter-overlay" id="presenterOverlay">Presenter Mode Active</div>
+
+  <section id="endScreen" class="screen end">
+    <div class="hero">
+      <h1>Thank You, Class</h1>
+      <div class="tag">Challenge Completed</div>
+      <p id="finalLine" class="desc"></p>
+      <p id="finalScore" class="desc"></p>
+      <div style="margin-top:22px;"><button class="btn" onclick="location.reload()">Run Again</button></div>
+    </div>
+  </section>
+
+  <script>
+    const quizData = [
+      { question: "What is the main purpose of fake online reviews?", options: ["Entertainment", "Mislead customers", "Product testing", "Customer support"], correct: 1 },
+      { question: "Which of these is a strong sign of fake reviews?", options: ["Balanced feedback", "Repeated wording across many reviews", "Verified purchase", "Specific product details"], correct: 1 },
+      { question: "Biggest impact of fake reviews on customers?", options: ["Wrong purchase decisions", "Faster delivery", "Better communication", "Free products"], correct: 0 },
+      { question: "Which review sounds most genuine?", options: ["Best product ever!!!", "Perfect in every way", "Good quality but expensive", "Buy immediately"], correct: 2 },
+      { question: "Why are genuine reviews more trustworthy?", options: ["Always 5-star", "They avoid details", "They include balanced opinions", "They are short"], correct: 2 }
+    ];
+
+    const studentList = [
+      "Aayushi Tandon","Akashdeep Singh","Amarjeet Kaur","Amritpal","Arshpreet Kaur","Aryan Jindal","Bavneet kaur","Bhanupartap Singh Dalal","Bhavya sharma","Bhupinderjit Singh","Chahatpreet Kaur","Charankamalpreet kaur","Devi prasanna","Dhroov Rattan","Garav sharma","Garv sharma","gurnoor singh","Gurvir Kaur","Harneet Kaur","Harshpreet Singh Malhi","Himanshu","Jahnvi Jain","Jashandeep kaur","Jashandeep Singh","Jaskaran Singh","jiya ghai","Jyoshnapriya","Kamakshi","Kamalpreet kaur","khushi Mathur","Krishna arora","Manjot kaur","Manveer singh","Mehak","Mishthi Virmani","Navdeep Kaur","Parneet kaur","Prabhdeep Singh Gill","Prapti Jain","raghav sharma","Rahmanul Hussain Laskar","Ranjeet kaur","Reshma Khatoon","Ritika","Samkit jain","Samyank","Sanjana Kumari","Saransh chawla","Satpal Verma","Shadil Ahmad","Sikander Lal","Subarna Roy","Sudhir Kumar Madaan","Sumit Sharma","Tajinderpal Sharma","Trimann Jeet Singh","Unnati Sharma","Vaneeta","Vanshika","Vatsal Behal"
+    ];
+
+    const TIMER_SECONDS = 20;
+
+    let currentQuestion = 0;
+    let score = 0;
+    let totalAttempts = 0;
+    let totalPasses = 0;
+    let currentStudent = null;
+    let absent = new Set();
+    let usedForQuestion = new Set();
+    let lockAnswers = true;
+    let timer = null;
+    let timerLeft = TIMER_SECONDS;
+    let hideUiTimer = null;
+
+    const normalizedStudents = [...new Set(studentList.map(n => n.trim().replace(/\s+/g, " ")))].sort((a,b)=>a.localeCompare(b));
+
+    const startScreen = document.getElementById("startScreen");
+    const quizScreen = document.getElementById("quizScreen");
+    const endScreen = document.getElementById("endScreen");
+    const currentStudentEl = document.getElementById("currentStudent");
+    const questionTextEl = document.getElementById("questionText");
+    const optionsEl = document.getElementById("options");
+    const studentListEl = document.getElementById("studentList");
+    const announceEl = document.getElementById("announce");
+    const eventLogEl = document.getElementById("eventLog");
+    const stageEl = document.getElementById("stage");
+    const stageStudentNameEl = document.getElementById("stageStudentName");
+    const presenterOverlayEl = document.getElementById("presenterOverlay");
+    const fullscreenBtnEl = document.getElementById("fullscreenBtn");
+    const startFullscreenBtnEl = document.getElementById("startFullscreenBtn");
+
+    function isFullscreen() {
+      return !!document.fullscreenElement;
+    }
+
+    async function toggleFullscreen(forceOn = false) {
+      try {
+        if (forceOn) {
+          if (!isFullscreen()) await document.documentElement.requestFullscreen();
+        } else if (!isFullscreen()) {
+          await document.documentElement.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (_) {
+        announceEl.textContent = "Fullscreen could not be enabled in this browser context.";
+      }
+      syncFullscreenUi();
+    }
+
+    function syncFullscreenUi() {
+      const active = isFullscreen();
+      fullscreenBtnEl.textContent = active ? "Exit Full Screen" : "Presenter Full Screen";
+      presenterOverlayEl.style.display = active ? "block" : "none";
+      if (!active) {
+        clearTimeout(hideUiTimer);
+        document.body.classList.remove("hide-ui");
+      } else {
+        armAutoHide();
+      }
+    }
+
+    function armAutoHide() {
+      if (!isFullscreen() || !quizScreen.classList.contains("show")) return;
+      document.body.classList.remove("hide-ui");
+      clearTimeout(hideUiTimer);
+      hideUiTimer = setTimeout(() => {
+        if (isFullscreen()) document.body.classList.add("hide-ui");
+      }, 2500);
+    }
+
+    function hideUiNow() {
+      if (!isFullscreen() || !quizScreen.classList.contains("show")) return;
+      clearTimeout(hideUiTimer);
+      setTimeout(() => {
+        if (isFullscreen()) document.body.classList.add("hide-ui");
+      }, 220);
+    }
+
+    function showScreen(target) {
+      [startScreen, quizScreen, endScreen].forEach(s => s.classList.remove("show"));
+      target.classList.add("show");
+    }
+
+    function logEvent(text) {
+      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const line = document.createElement("div");
+      line.textContent = `[${time}] ${text}`;
+      eventLogEl.prepend(line);
+      while (eventLogEl.children.length > 14) eventLogEl.removeChild(eventLogEl.lastChild);
+    }
+
+    function updateStats() {
+      document.getElementById("attempts").textContent = totalAttempts;
+      document.getElementById("passes").textContent = totalPasses;
+      document.getElementById("correctCount").textContent = score;
+      document.getElementById("score").textContent = `Score: ${score}`;
+      document.getElementById("qCounter").textContent = `Question ${currentQuestion + 1} / ${quizData.length}`;
+      document.getElementById("progressFill").style.width = `${(currentQuestion / quizData.length) * 100}%`;
+      document.getElementById("timeLeft").textContent = `${timerLeft}s`;
+      document.getElementById("timerText").textContent = `${timerLeft}s`;
+    }
+
+    function renderStudents() {
+      studentListEl.innerHTML = "";
+      normalizedStudents.forEach(name => {
+        const item = document.createElement("div");
+        item.className = "student";
+        if (absent.has(name)) item.classList.add("absent");
+        if (usedForQuestion.has(name)) item.classList.add("used");
+        item.textContent = name;
+        studentListEl.appendChild(item);
+      });
+    }
+
+    function eligiblePool() {
+      return normalizedStudents.filter(s => !absent.has(s) && !usedForQuestion.has(s));
+    }
+
+    function updateModeTag(text) {
+      document.getElementById("modeTag").textContent = text;
+    }
+
+    function startTimer() {
+      clearInterval(timer);
+      timerLeft = TIMER_SECONDS;
+      updateTimerBar();
+      updateStats();
+      timer = setInterval(() => {
+        timerLeft -= 1;
+        updateTimerBar();
+        updateStats();
+        if (timerLeft <= 0) {
+          clearInterval(timer);
+          autoPass("Time up");
+        }
+      }, 1000);
+    }
+
+    function updateTimerBar() {
+      const pct = Math.max(0, (timerLeft / TIMER_SECONDS) * 100);
+      const fill = document.getElementById("timerFill");
+      fill.style.width = `${pct}%`;
+      if (pct <= 30) fill.style.background = "linear-gradient(90deg, #ff6b6b, #ffd166)";
+      else fill.style.background = "linear-gradient(90deg, #4be38f, #ffd166)";
+    }
+
+    function pickStudent(manual = true) {
+      const pool = eligiblePool();
+      if (!pool.length) {
+        announceEl.textContent = "No more eligible students for this question. Moving ahead.";
+        logEvent("No eligible student left, forced next question.");
+        setTimeout(nextQuestion, 1200);
+        return;
+      }
+
+      let flickers = 16;
+      lockAnswers = true;
+      updateModeTag("Randomizer spinning");
+      const spin = setInterval(() => {
+        currentStudentEl.textContent = pool[Math.floor(Math.random() * pool.length)];
+        flickers -= 1;
+        if (flickers <= 0) {
+          clearInterval(spin);
+          currentStudent = pool[Math.floor(Math.random() * pool.length)];
+          usedForQuestion.add(currentStudent);
+          currentStudentEl.textContent = currentStudent;
+          stageStudentNameEl.textContent = currentStudent;
+          stageEl.classList.remove("pulse");
+          void stageEl.offsetWidth;
+          stageEl.classList.add("pulse");
+          lockAnswers = false;
+          announceEl.textContent = manual ? `${currentStudent}, spotlight is on you.` : `Question passed to ${currentStudent}.`;
+          updateModeTag("Answering live");
+          logEvent(`${manual ? "Selected" : "Passed to"} ${currentStudent}`);
+          renderStudents();
+          startTimer();
+          hideUiNow();
+        }
+      }, 70);
+    }
+
+    function renderQuestion() {
+      clearInterval(timer);
+      timerLeft = TIMER_SECONDS;
+      usedForQuestion = new Set();
+      currentStudent = null;
+      lockAnswers = true;
+      questionTextEl.textContent = quizData[currentQuestion].question;
+      currentStudentEl.textContent = "Not selected";
+      stageStudentNameEl.textContent = "Waiting for student...";
+      announceEl.textContent = "Pick a student to start this question.";
+      updateModeTag("Waiting for random pick");
+
+      optionsEl.innerHTML = "";
+      quizData[currentQuestion].options.forEach((opt, idx) => {
+        const btn = document.createElement("button");
+        btn.className = "opt";
+        btn.textContent = `${String.fromCharCode(65 + idx)}. ${opt}`;
+        btn.onclick = () => answer(idx, btn);
+        optionsEl.appendChild(btn);
+      });
+
+      renderStudents();
+      updateTimerBar();
+      updateStats();
+    }
+
+    function freezeOptions(state) {
+      [...document.querySelectorAll(".opt")].forEach(b => b.disabled = state);
+    }
+
+    function autoPass(reason) {
+      if (!currentStudent) return;
+      totalAttempts += 1;
+      totalPasses += 1;
+      announceEl.textContent = `${reason}. Question passes...`;
+      logEvent(`${currentStudent} timed out. Passing question.`);
+      updateModeTag("Passing question");
+      pickStudent(false);
+      updateStats();
+    }
+
+    function answer(index, btn) {
+      if (lockAnswers || !currentStudent) {
+        announceEl.textContent = "Pick a student first.";
+        return;
+      }
+
+      clearInterval(timer);
+      freezeOptions(true);
+      const q = quizData[currentQuestion];
+      totalAttempts += 1;
+
+      if (index === q.correct) {
+        score += 1;
+        btn.classList.add("correct");
+        announceEl.textContent = `Correct by ${currentStudent}.`;
+        logEvent(`${currentStudent} answered correctly.`);
+        updateModeTag("Correct answer");
+        updateStats();
+        setTimeout(nextQuestion, 1250);
+      } else {
+        btn.classList.add("wrong");
+        announceEl.textContent = `${currentStudent} got it wrong. Passing question...`;
+        logEvent(`${currentStudent} answered wrong. Pass count +1.`);
+        totalPasses += 1;
+        updateModeTag("Passing question");
+        updateStats();
+        setTimeout(() => {
+          const all = [...document.querySelectorAll(".opt")];
+          all.forEach(x => x.classList.remove("wrong", "correct"));
+          freezeOptions(false);
+          pickStudent(false);
+        }, 1300);
+      }
+    }
+
+    function nextQuestion() {
+      currentQuestion += 1;
+      if (currentQuestion >= quizData.length) {
+        finishQuiz();
+        return;
+      }
+      renderQuestion();
+    }
+
+    function finishQuiz() {
+      clearInterval(timer);
+      showScreen(endScreen);
+      const perf = score === quizData.length ? "Outstanding control. Absolute stage command." : score >= 3 ? "Great momentum and audience pressure handled well." : "Solid run. One more round and this will hit even harder.";
+      document.getElementById("finalLine").textContent = perf;
+      document.getElementById("finalScore").textContent = `Final score: ${score}/${quizData.length} | Attempts: ${totalAttempts} | Passes: ${totalPasses}`;
+    }
+
+    document.getElementById("startBtn").onclick = () => {
+      showScreen(quizScreen);
+      renderQuestion();
+      logEvent("Challenge started.");
+      syncFullscreenUi();
+    };
+
+    startFullscreenBtnEl.onclick = async () => {
+      showScreen(quizScreen);
+      renderQuestion();
+      logEvent("Challenge started in fullscreen.");
+      await toggleFullscreen(true);
+    };
+
+    document.getElementById("pickBtn").onclick = () => {
+      if (!lockAnswers) {
+        announceEl.textContent = `${currentStudent} is already active.`;
+        return;
+      }
+      pickStudent(true);
+      armAutoHide();
+    };
+
+    document.getElementById("absentBtn").onclick = () => {
+      if (!currentStudent) {
+        announceEl.textContent = "No active student to mark absent.";
+        return;
+      }
+      absent.add(currentStudent);
+      announceEl.textContent = `${currentStudent} marked absent. Pick next student.`;
+      logEvent(`${currentStudent} marked absent.`);
+      clearInterval(timer);
+      lockAnswers = true;
+      currentStudent = null;
+      currentStudentEl.textContent = "Not selected";
+      stageStudentNameEl.textContent = "Waiting for student...";
+      updateModeTag("Waiting for random pick");
+      renderStudents();
+      updateStats();
+      armAutoHide();
+    };
+
+    fullscreenBtnEl.onclick = async () => {
+      await toggleFullscreen(false);
+    };
+
+    document.addEventListener("fullscreenchange", syncFullscreenUi);
+    ["mousemove", "keydown", "click", "touchstart"].forEach(evt => {
+      document.addEventListener(evt, () => {
+        if (!quizScreen.classList.contains("show")) return;
+        armAutoHide();
+      }, { passive: true });
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (!quizScreen.classList.contains("show")) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (lockAnswers) pickStudent(true);
+      }
+      if (["Digit1", "Digit2", "Digit3", "Digit4"].includes(e.code)) {
+        const idx = Number(e.code.replace("Digit", "")) - 1;
+        const btns = [...document.querySelectorAll(".opt")];
+        if (btns[idx]) btns[idx].click();
+      }
+      if (e.key.toLowerCase() === "a") document.getElementById("absentBtn").click();
+      if (e.key.toLowerCase() === "f") fullscreenBtnEl.click();
+    });
+
+    renderStudents();
+    syncFullscreenUi();
+  </script>
+</body>
+</html>
