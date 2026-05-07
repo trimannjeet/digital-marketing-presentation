@@ -535,6 +535,10 @@
     const statusPopupEl = document.getElementById("statusPopup");
     const statusPopupTextEl = document.getElementById("statusPopupText");
 
+    function displayName(name) {
+      return String(name || "").toUpperCase();
+    }
+
     function clearDelayedAction() {
       if (!delayedAction) return;
       clearTimeout(delayedAction.id);
@@ -675,7 +679,7 @@
         item.className = "student";
         if (absent.has(name)) item.classList.add("absent");
         if (usedForQuestion.has(name)) item.classList.add("used");
-        item.textContent = name;
+        item.textContent = displayName(name);
         studentListEl.appendChild(item);
       });
     }
@@ -728,22 +732,22 @@
       if (spinTimer) clearInterval(spinTimer);
       spinTimer = setInterval(() => {
         if (paused) return;
-        currentStudentEl.textContent = pool[Math.floor(Math.random() * pool.length)];
+        currentStudentEl.textContent = displayName(pool[Math.floor(Math.random() * pool.length)]);
         flickers -= 1;
         if (flickers <= 0) {
           clearInterval(spinTimer);
           spinTimer = null;
           currentStudent = pool[Math.floor(Math.random() * pool.length)];
           usedForQuestion.add(currentStudent);
-          currentStudentEl.textContent = currentStudent;
-          stageStudentNameEl.textContent = currentStudent;
+          currentStudentEl.textContent = displayName(currentStudent);
+          stageStudentNameEl.textContent = displayName(currentStudent);
           stageEl.classList.remove("pulse");
           void stageEl.offsetWidth;
           stageEl.classList.add("pulse");
           lockAnswers = false;
-          announceEl.textContent = manual ? `${currentStudent}, spotlight is on you.` : `Question passed to ${currentStudent}.`;
+          announceEl.textContent = manual ? `${displayName(currentStudent)}, spotlight is on you.` : `Question passed to ${displayName(currentStudent)}.`;
           updateModeTag("Answering live");
-          logEvent(`${manual ? "Selected" : "Passed to"} ${currentStudent}`);
+          logEvent(`${manual ? "Selected" : "Passed to"} ${displayName(currentStudent)}`);
           renderStudents();
           startTimer();
           hideUiNow();
@@ -814,18 +818,18 @@
       if (index === q.correct) {
         score += 1;
         btn.classList.add("correct");
-        announceEl.textContent = `Correct by ${currentStudent}.`;
-        logEvent(`${currentStudent} answered correctly.`);
+        announceEl.textContent = `Correct by ${displayName(currentStudent)}.`;
+        logEvent(`${displayName(currentStudent)} answered correctly.`);
         updateModeTag("Correct answer");
         updateStats();
         runAfterDelay(nextQuestion, 1250);
       } else {
         btn.classList.add("wrong");
-        announceEl.textContent = `${currentStudent} got it wrong. Passing question...`;
-        logEvent(`${currentStudent} answered wrong. Pass count +1.`);
+        announceEl.textContent = `${displayName(currentStudent)} got it wrong. Passing question...`;
+        logEvent(`${displayName(currentStudent)} answered wrong. Pass count +1.`);
         totalPasses += 1;
         updateModeTag("Passing question");
-        showStatusPopup(`${currentStudent} answered wrong. No worries, we are passing this question to the randomizer.`);
+        showStatusPopup(`${displayName(currentStudent)} answered wrong. No worries, we are passing this question to the randomizer.`);
         updateStats();
         runAfterDelay(() => {
           const all = [...document.querySelectorAll(".opt")];
@@ -870,7 +874,7 @@
 
     document.getElementById("pickBtn").onclick = () => {
       if (!lockAnswers) {
-        announceEl.textContent = `${currentStudent} is already active.`;
+        announceEl.textContent = `${displayName(currentStudent)} is already active.`;
         return;
       }
       pickStudent(true);
@@ -883,8 +887,8 @@
         return;
       }
       absent.add(currentStudent);
-      announceEl.textContent = `${currentStudent} marked absent. Picking next student...`;
-      logEvent(`${currentStudent} marked absent.`);
+      announceEl.textContent = `${displayName(currentStudent)} marked absent. Picking next student...`;
+      logEvent(`${displayName(currentStudent)} marked absent.`);
       clearInterval(timer);
       lockAnswers = true;
       currentStudent = null;
