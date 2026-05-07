@@ -189,6 +189,36 @@
       padding: 7px 11px;
       transition: opacity .35s ease, transform .35s ease;
     }
+    .status-popup {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(4, 10, 18, 0.68);
+      backdrop-filter: blur(4px);
+    }
+    .status-popup.show { display: flex; }
+    .status-card {
+      width: min(680px, 96vw);
+      border: 1px solid rgba(255, 107, 107, 0.46);
+      border-radius: 16px;
+      padding: 18px 20px;
+      background: linear-gradient(155deg, rgba(54, 14, 17, 0.92), rgba(18, 29, 48, 0.92));
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+      text-align: center;
+    }
+    .status-card h3 {
+      margin-bottom: 8px;
+      color: #ff9e9e;
+      letter-spacing: .4px;
+    }
+    .status-card p {
+      color: #ffdfe0;
+      line-height: 1.6;
+    }
 
     .topbar {
       display: flex;
@@ -414,6 +444,7 @@
             <span id="qCounter">Question 1 / 5</span>
             <span id="score">Score: 0</span>
             <span id="modeTag" class="chip">Waiting for random pick</span>
+            <button id="pauseBtn" class="btn slim ghost" type="button">Pause</button>
             <button id="fullscreenBtn" class="btn slim secondary" type="button">Presenter Full Screen</button>
           </div>
 
@@ -437,6 +468,12 @@
     </div>
   </section>
   <div class="presenter-overlay" id="presenterOverlay">Presenter Mode Active</div>
+  <div class="status-popup" id="statusPopup" aria-live="polite">
+    <div class="status-card">
+      <h3>Answer Not Correct</h3>
+      <p id="statusPopupText"></p>
+    </div>
+  </div>
 
   <section id="endScreen" class="screen end">
     <div class="hero">
@@ -474,6 +511,9 @@
     let timer = null;
     let timerLeft = TIMER_SECONDS;
     let hideUiTimer = null;
+    let paused = false;
+    let spinTimer = null;
+    let delayedAction = null;
 
     const normalizedStudents = [...new Set(studentList.map(n => n.trim().replace(/\s+/g, " ")))].sort((a,b)=>a.localeCompare(b));
 
@@ -491,6 +531,70 @@
     const presenterOverlayEl = document.getElementById("presenterOverlay");
     const fullscreenBtnEl = document.getElementById("fullscreenBtn");
     const startFullscreenBtnEl = document.getElementById("startFullscreenBtn");
+    const pauseBtnEl = document.getElementById("pauseBtn");
+    const statusPopupEl = document.getElementById("statusPopup");
+    const statusPopupTextEl = document.getElementById("statusPopupText");
+
+    function clearDelayedAction() {
+      if (!delayedAction) return;
+      clearTimeout(delayedAction.id);
+      delayedAction = null;
+    }
+
+    function runAfterDelay(fn, delay) {
+      clearDelayedAction();
+      delayedAction = {
+        fn,
+        remaining: delay,
+        startedAt: Date.now(),
+        id: null
+      };
+      delayedAction.id = setTimeout(() => {
+        const task = delayedAction;
+        delayedAction = null;
+        if (task) task.fn();
+      }, delay);
+    }
+
+    function hideStatusPopup() {
+      statusPopupEl.classList.remove("show");
+    }
+
+    function showStatusPopup(message) {
+      statusPopupTextEl.textContent = message;
+      statusPopupEl.classList.add("show");
+    }
+
+    function syncPauseUi() {
+      pauseBtnEl.textContent = paused ? "Resume" : "Pause";
+      pauseBtnEl.classList.toggle("secondary", paused);
+      if (paused) {
+        updateModeTag("Paused");
+        announceEl.textContent = "Quiz is paused.";
+      }
+    }
+
+    function togglePause(forceState) {
+      const shouldPause = typeof forceState === "boolean" ? forceState : !paused;
+      if (shouldPause === paused) return;
+      paused = shouldPause;
+
+      if (paused) {
+        if (delayedAction) {
+          clearTimeout(delayedAction.id);
+          delayedAction.remaining = Math.max(0, delayedAction.remaining - (Date.now() - delayedAction.startedAt));
+        }
+      } else if (delayedAction) {
+        delayedAction.startedAt = Date.now();
+        delayedAction.id = setTimeout(() => {
+          const task = delayedAction;
+          delayedAction = null;
+          if (task) task.fn();
+        }, delayedAction.remaining);
+      }
+
+      syncPauseUi();
+    }
 
     function isFullscreen() {
       return !!document.fullscreenElement;
@@ -590,6 +694,7 @@
       updateTimerBar();
       updateStats();
       timer = setInterval(() => {
+        if (paused) return;
         timerLeft -= 1;
         updateTimerBar();
         updateStats();
@@ -613,18 +718,21 @@
       if (!pool.length) {
         announceEl.textContent = "No more eligible students for this question. Moving ahead.";
         logEvent("No eligible student left, forced next question.");
-        setTimeout(nextQuestion, 1200);
+        runAfterDelay(nextQuestion, 1200);
         return;
       }
 
       let flickers = 16;
       lockAnswers = true;
       updateModeTag("Randomizer spinning");
-      const spin = setInterval(() => {
+      if (spinTimer) clearInterval(spinTimer);
+      spinTimer = setInterval(() => {
+        if (paused) return;
         currentStudentEl.textContent = pool[Math.floor(Math.random() * pool.length)];
         flickers -= 1;
         if (flickers <= 0) {
-          clearInterval(spin);
+          clearInterval(spinTimer);
+          spinTimer = null;
           currentStudent = pool[Math.floor(Math.random() * pool.length)];
           usedForQuestion.add(currentStudent);
           currentStudentEl.textContent = currentStudent;
@@ -645,6 +753,13 @@
 
     function renderQuestion() {
       clearInterval(timer);
+      if (spinTimer) {
+        clearInterval(spinTimer);
+        spinTimer = null;
+      }
+      clearDelayedAction();
+      hideStatusPopup();
+      paused = false;
       timerLeft = TIMER_SECONDS;
       usedForQuestion = new Set();
       currentStudent = null;
@@ -667,6 +782,7 @@
       renderStudents();
       updateTimerBar();
       updateStats();
+      syncPauseUi();
     }
 
     function freezeOptions(state) {
@@ -702,20 +818,22 @@
         logEvent(`${currentStudent} answered correctly.`);
         updateModeTag("Correct answer");
         updateStats();
-        setTimeout(nextQuestion, 1250);
+        runAfterDelay(nextQuestion, 1250);
       } else {
         btn.classList.add("wrong");
         announceEl.textContent = `${currentStudent} got it wrong. Passing question...`;
         logEvent(`${currentStudent} answered wrong. Pass count +1.`);
         totalPasses += 1;
         updateModeTag("Passing question");
+        showStatusPopup(`${currentStudent} answered wrong. No worries, we are passing this question to the randomizer.`);
         updateStats();
-        setTimeout(() => {
+        runAfterDelay(() => {
           const all = [...document.querySelectorAll(".opt")];
           all.forEach(x => x.classList.remove("wrong", "correct"));
           freezeOptions(false);
+          hideStatusPopup();
           pickStudent(false);
-        }, 1300);
+        }, 1700);
       }
     }
 
@@ -765,17 +883,22 @@
         return;
       }
       absent.add(currentStudent);
-      announceEl.textContent = `${currentStudent} marked absent. Pick next student.`;
+      announceEl.textContent = `${currentStudent} marked absent. Picking next student...`;
       logEvent(`${currentStudent} marked absent.`);
       clearInterval(timer);
       lockAnswers = true;
       currentStudent = null;
       currentStudentEl.textContent = "Not selected";
       stageStudentNameEl.textContent = "Waiting for student...";
-      updateModeTag("Waiting for random pick");
+      updateModeTag("Auto picking replacement");
       renderStudents();
       updateStats();
+      pickStudent(false);
       armAutoHide();
+    };
+
+    pauseBtnEl.onclick = () => {
+      togglePause();
     };
 
     fullscreenBtnEl.onclick = async () => {
@@ -792,6 +915,12 @@
 
     document.addEventListener("keydown", (e) => {
       if (!quizScreen.classList.contains("show")) return;
+      if (e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        togglePause();
+        return;
+      }
+      if (paused) return;
       if (e.code === "Space") {
         e.preventDefault();
         if (lockAnswers) pickStudent(true);
